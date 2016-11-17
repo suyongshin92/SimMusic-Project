@@ -19,7 +19,7 @@
 #define PURPLE1             7
 #define PURPLE2             8
 
-#define FILES_LENGTH 1000         //maxumum length of file
+#define FILES_LENGTH 1000         //maximum length of file
 #define MAX_INSTRUCTION_NUM 1000  //maximun num of instructions
 #define INSTRUCTION_LENGTH 5	  //fixed lenghth of an instruction
 
@@ -181,9 +181,9 @@ task execute() {
 
 		if (opCode == 0)
 		{
-      //in the case of PN
+      			//in the case of PN
 
-      f1 = memory[pc][2];
+      			f1 = memory[pc][2];
 			f2 = memory[pc][3];
 			duration = memory[pc][4];
 
@@ -195,9 +195,9 @@ task execute() {
 		}
 		else if(opCode == 1)
 		{
-      //in the case of JM
+      			//in the case of JM
 
-      jumpIndex[0] = memory[pc][1];
+      			jumpIndex[0] = memory[pc][1];
 			jumpIndex[1] = memory[pc][2];
 			jumpIndex[2] = memory[pc][3];
 			jumpIndex[3] = memory[pc][4];
@@ -216,9 +216,9 @@ task execute() {
 		}
 		else if(opCode == 2)
 		{
-      //in the case of RM
+     			//in the case of RM
 
-      if(repeatFlag == false)
+      			if(repeatFlag == false)
 			{
 				repeatNum = memory[pc][1];
 				repeatOffset[0] = memory[pc][2];
@@ -246,9 +246,9 @@ task execute() {
 		}
 		else if(opCode == 3)
 		{
-      //in the case of PM
+     			//in the case of PM
 
-      pauseTime[0] = memory[pc][1];
+     			pauseTime[0] = memory[pc][1];
 			pauseTime[1] = memory[pc][2];
 			pauseTime[2] = memory[pc][3];
 			pauseTime[3] = memory[pc][4];
@@ -266,12 +266,12 @@ task execute() {
 		}
 		else if(opCode == 4)
 		{
-      //in the case of SM
-      TextOut(0, LCD_LINE5, "Playing Done!");
-      Wait(MS_600);
-      ClearScreen();
+      			//in the case of SM
+      			TextOut(0, LCD_LINE5, "Playing Done!");
+      			Wait(MS_600);
+      			ClearScreen();
 
-      StopSound();
+      			StopSound();
 			break;
 		}
 		else
@@ -298,11 +298,11 @@ task read()
 
      int count; byte hand;
 
-	   int i = 0, j = 0;
-	   int dataCount = 0;
+     int i = 0, j = 0;
+     int dataCount = 0;
 
      DeleteFile("read.txt");
-	   CreateFile("read.txt", FILES_LENGTH, hand);
+     CreateFile("read.txt", FILES_LENGTH, hand);
 
      OnFwdReg(LEFT_MOTOR, -MAX_SPEED, OUT_REGMODE_SPEED);
      OnFwdReg(RIGHT_MOTOR, MAX_SPEED, OUT_REGMODE_SPEED);
