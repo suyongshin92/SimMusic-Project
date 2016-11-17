@@ -1,0 +1,398 @@
+//A program for SimMusic player
+//It reads color tape and playes the song using NXT modules.
+
+#include "NXCDefs.h"
+
+#define LEFT_MOTOR OUT_B         //left motor port
+#define RIGHT_MOTOR OUT_C        //right motor port
+#define COLOR_SENSOR_PORT IN_2   //HT color sensor port
+#define SENSOR_MODE_RAW          //HT color sensor mode
+
+#define MAX_SPEED 20
+#define MAX_ACC 10
+
+#define BLUE                1
+#define GREEN               3
+#define YELLOW1             5
+#define YELLOW2             6
+#define RED                 9
+#define PURPLE1             7
+#define PURPLE2             8
+
+#define FILES_LENGTH 1000         //maxumum length of file
+#define MAX_INSTRUCTION_NUM 1000  //maximun num of instructions
+#define INSTRUCTION_LENGTH 5	  //fixed lenghth of an instruction
+
+/* Global variable declaration */
+int memory[MAX_INSTRUCTION_NUM][INSTRUCTION_LENGTH];
+int pc;             //program counter
+int lr = -1;	    //link register
+int opCode;	    //operation code
+int iValue;         //number of read instructions
+int digitWidth;     //width of one digit
+
+/* C2M decoding table */
+unsigned int frequencyTable[][] = {{262, 277, 294, 311, 330},
+				   {349, 370, 392, 415, 440},
+				   {466, 494, 523, 554, 587},
+				   {622, 659, 698, 740, 784},
+				   {831, 880, 932, 988, -1}};
+unsigned int durationTable[] = {1000, 500, 250, 125, 62};
+
+
+
+
+
+/* Subroutine that initializes HT color sensor */
+sub init()
+{
+     SensorHTColorNum(COLOR_SENSOR_PORT);      //Configure the HT Color Sensor as an I2C Digital Sensor
+     SetSensorLowspeed(COLOR_SENSOR_PORT);     //Read the Color Number from the HT Color Sensor
+     SetSensorMode(COLOR_SENSOR_PORT, SENSOR_MODE_RAW); //Set HT Color Sensor Mode as Raw value from 0 to 1023
+     ResetSensor(COLOR_SENSOR_PORT);           //Reset the HT Color Sensor Port after Changing the mode
+     Wait(MS_100);                             //Wait for 100ms
+
+     PosRegSetMax(LEFT_MOTOR, MAX_SPEED, MAX_ACC);
+     PosRegSetMax(RIGHT_MOTOR, MAX_SPEED, MAX_ACC);
+}
+
+/* Subroutine that prints error message to NXT display */
+sub printError(int errorNum)
+{
+  switch(errorNum)
+  {
+    case 1 :
+         //in the case of fetcing error
+         TextOut(0, LCD_LINE4, "Fetching Error!");
+		     NumOut(0, LCD_LINE5, pc);
+		     break;
+    case 2 :
+         //in the case of conversion error
+         TextOut(0, LCD_LINE4, "Conversion Error!");
+		     NumOut(0, LCD_LINE5, pc);
+		     break;
+    case 3 :
+         //in the case of decoding error
+         TextOut(0, LCD_LINE4, "Decoding Error!");
+		     NumOut(0, LCD_LINE5, pc);
+		     break;
+    default :
+         TextOut(0, LCD_LINE4, "Unknown Error!");
+         NumOut(0, LCD_LINE5, pc);
+         break;
+  }
+  while(1);
+}
+
+/* Subroutine that calculates and initializes digit width */
+sub initRead()
+{
+     unsigned int point[11], localWidth[9];
+     unsigned int tempSum = 0;
+     int i;
+
+     OnFwdReg(LEFT_MOTOR, -MAX_SPEED, OUT_REGMODE_SPEED); //run left motor as regulate speed
+     OnFwdReg(RIGHT_MOTOR, MAX_SPEED, OUT_REGMODE_SPEED); //run right motor as regulate speed
+     TextOut(0, LCD_LINE3, "Init Read...");
+
+     /* Measuring local time width 10 times */
+     while(SensorHTColorNum(COLOR_SENSOR_PORT) > GREEN);//while digit is PURPLE
+     point[0] = CurrentTick();
+
+     while(SensorHTColorNum(COLOR_SENSOR_PORT) < GREEN);//while digit is BLUE
+     point[1] = CurrentTick();
+
+     while(SensorHTColorNum(COLOR_SENSOR_PORT) > GREEN);//while digit is RED
+     point[2] = CurrentTick();
+
+     while(SensorHTColorNum(COLOR_SENSOR_PORT) < GREEN);//while digit is BLUE
+     point[3] = CurrentTick();
+
+     while(SensorHTColorNum(COLOR_SENSOR_PORT) > GREEN);//while digit is RED
+     point[4] = CurrentTick();
+
+     while(SensorHTColorNum(COLOR_SENSOR_PORT) < GREEN);//while digit is BLUE
+     point[5] = CurrentTick();
+
+     while(SensorHTColorNum(COLOR_SENSOR_PORT) > GREEN);//while digit is RED
+     point[6] = CurrentTick();
+
+     while(SensorHTColorNum(COLOR_SENSOR_PORT) < GREEN);//while digit is BLUE
+     point[7] = CurrentTick();
+
+     while(SensorHTColorNum(COLOR_SENSOR_PORT) > GREEN);//while digit is RED
+     point[8] = CurrentTick();
+
+     while(SensorHTColorNum(COLOR_SENSOR_PORT) < GREEN);//while digit is BLUE
+     point[9] = CurrentTick();
+
+     while(SensorHTColorNum(COLOR_SENSOR_PORT) == RED);//while digit is RED
+     point[10] = CurrentTick();   //experimently dummy value
+
+     Off(LEFT_MOTOR);
+     Off(RIGHT_MOTOR);
+
+     /* Calculating average and initializing digitWidth */
+     for(i = 0; i < 9; i++)
+     {
+           localWidth[i] = point[i + 1] - point[i];
+           tempSum += localWidth[i];
+     }
+     digitWidth = tempSum / 8;
+
+     TextOut(0,LCD_LINE4, "Width = ");
+     NumOut(45, LCD_LINE4, digitWidth);
+     TextOut(0, LCD_LINE5, "Init Read Done!");
+
+     Wait(SEC_5);
+     ClearScreen();
+}
+
+/* Task that executes instructions in memory */
+task execute() {
+
+	/* Used in PN (op-code 0) */
+	int f1, f2;
+	int duration;
+
+	/* Used in JM (op-code 1) */
+	int jumpIndex[4];
+	int index = 0;
+
+	/* Used in RM (op-code 2) */
+	int repeatOffset[3];
+	int repeatNum;
+	int offset = 0;
+	int destIndex = -1;
+	bool repeatFlag = false;
+
+	/* Used in PM (op-code 3) */
+	int pauseTime[4];
+	int pTime = 0;
+
+	TextOut(0, LCD_LINE3, "Start playing...");
+  Wait(MS_600);
+  TextOut(0, LCD_LINE4, "Playing...");
+  Wait(MS_600);
+
+  for(pc = 0; pc < iValue; pc++)
+	{
+		opCode = memory[pc][0];
+
+		if (opCode == 0)
+		{
+      //in the case of PN
+
+      f1 = memory[pc][2];
+			f2 = memory[pc][3];
+			duration = memory[pc][4];
+
+			if(frequencyTable[f1][f2] <= 0 || durationTable[duration] <= 0)
+				printError(3);
+
+			PlayTone(frequencyTable[f1][f2], durationTable[duration]);
+			Wait(durationTable[duration] + 100);
+		}
+		else if(opCode == 1)
+		{
+      //in the case of JM
+
+      jumpIndex[0] = memory[pc][1];
+			jumpIndex[1] = memory[pc][2];
+			jumpIndex[2] = memory[pc][3];
+			jumpIndex[3] = memory[pc][4];
+
+			/* converision from 5-ary to decimal */
+			index = jumpIndex[0] * 125;
+			index += jumpIndex[1] * 25;
+			index += jumpIndex[2] * 5;
+			index += jumpIndex[3] * 1;
+
+			if(index <= 0)  //in the case of conversion error
+				printError(2);
+
+			pc = index - 1;
+			Wait(100);
+		}
+		else if(opCode == 2)
+		{
+      //in the case of RM
+
+      if(repeatFlag == false)
+			{
+				repeatNum = memory[pc][1];
+				repeatOffset[0] = memory[pc][2];
+				repeatOffset[1] = memory[pc][3];
+				repeatOffset[2] = memory[pc][4];
+
+				/* converision from 5-ary to decimal */
+				offset = repeatOffset[0] * 25;
+				offset += repeatOffset[1] * 5;
+				offset += repeatOffset[2] * 1;
+
+				if(offset <= 0)		//in the case of conversion error
+					printError(2);
+
+				destIndex = pc + offset;
+				lr = pc;
+				repeatFlag = true;
+				Wait(100);
+			}
+			else
+			{
+				repeatNum--;
+				Wait(100);
+			}
+		}
+		else if(opCode == 3)
+		{
+      //in the case of PM
+
+      pauseTime[0] = memory[pc][1];
+			pauseTime[1] = memory[pc][2];
+			pauseTime[2] = memory[pc][3];
+			pauseTime[3] = memory[pc][4];
+
+			/* converision from 5-ary to decimal */
+			pTime = pauseTime[0] * 125;
+			pTime += pauseTime[1] * 25;
+			pTime += pauseTime[2] * 5;
+			pTime += pauseTime[3] * 1;
+
+			if(pTime <= 0)		//in the case of conversion error
+				printError(2);
+
+			Wait(pTime);
+		}
+		else if(opCode == 4)
+		{
+      //in the case of SM
+      TextOut(0, LCD_LINE5, "Playing Done!");
+      Wait(MS_600);
+      ClearScreen();
+
+      StopSound();
+			break;
+		}
+		else
+		{
+			printError(1);
+		}
+
+		if(repeatFlag == true && pc == destIndex)
+		{
+			if(repeatNum == 1)
+				repeatFlag = false;
+			else
+				pc = lr - 1;
+		}
+	}
+}
+
+/* Task that reads the tape using HT color sensor */
+task read()
+{
+     int colorValue;
+     byte  colorNum, red, green, blue;
+     unsigned int redValue, greenValue, blueValue;
+
+     int count; byte hand;
+
+	   int i = 0, j = 0;
+	   int dataCount = 0;
+
+     DeleteFile("read.txt");
+	   CreateFile("read.txt", FILES_LENGTH, hand);
+
+     OnFwdReg(LEFT_MOTOR, -MAX_SPEED, OUT_REGMODE_SPEED);
+     OnFwdReg(RIGHT_MOTOR, MAX_SPEED, OUT_REGMODE_SPEED);
+
+     while(1)
+     {
+         while(!ReadSensorHTColor(COLOR_SENSOR_PORT, colorNum, red, green, blue));
+
+         redValue = red;
+         greenValue = green;
+         blueValue = blue;
+         colorValue =  SensorHTColorNum(COLOR_SENSOR_PORT);
+
+         if(colorValue <= BLUE){
+             TextOut(0, LCD_LINE3, "Blue");
+             memory[i][j] = 0;
+             WriteString(hand, "0", count);
+         }else if(colorValue == GREEN){
+             TextOut(0, LCD_LINE3, "Green");
+             memory[i][j] = 1;
+             WriteString(hand, "1", count);
+         }else if(colorValue == YELLOW1 || colorValue == YELLOW2){
+               if(redValue <= 30 || greenValue <= 60)
+               {
+                    //in the case of green color
+                    TextOut(0, LCD_LINE3, "Green");
+                    memory[i][j] = 1;
+                    WriteString(hand, "1", count);
+               }else
+               {
+                     TextOut(0, LCD_LINE3, "Yellow");
+                     memory[i][j] = 2;
+                     WriteString(hand, "2", count);
+               }
+        }else if(colorValue == RED){
+              TextOut(0, LCD_LINE3, "Red");
+              memory[i][j] = 3;
+              WriteString(hand, "3", count);
+        }else if(colorValue == PURPLE1 || colorValue == PURPLE2){
+              TextOut(0, LCD_LINE3, "Purple");
+              memory[i][j] = 4;
+              WriteString(hand, "4", count);
+        }else{
+              NumOut(0, LCD_LINE3, colorValue);
+              TextOut(0, LCD_LINE4, "Error");
+              memory[i][j] = 9;     //dummy value
+              WriteString(hand, "E", count);
+        }
+
+        j++;
+        dataCount++;
+
+        if(j == 5)
+        {
+             i++;
+             j = 0;
+             WriteLnString(hand, "", count);
+        }
+        
+        /* Recalculating digitWidth every 100 digits */
+        if(dataCount % 100 == 0)
+        {
+             ClearScreen();
+             initRead();
+        }
+
+        /* If sensor reads SM, then stop reading */
+        if(memory[i][0] == 4)
+        {
+             iValue = i;
+
+             Off(LEFT_MOTOR);
+             Off(RIGHT_MOTOR);
+
+             CloseFile(hand);
+             TextOut(0, LCD_LINE4, "Tape Read Done!");
+             Wait(MS_600);
+             ClearScreen();
+             ExitTo(execute);
+        }
+
+        Wait(digitWidth);
+        ClearScreen();
+    }
+}
+
+/* main task */
+task main()
+{
+     init();
+     initRead();
+     StartTask(read);
+}
