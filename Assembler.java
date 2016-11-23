@@ -164,7 +164,7 @@ public class Assembler {
 				i++;
 				assem[index][1] = Integer.parseInt(colorCode.get(i));
 				i++;
-				//conversion from decimal to 5-ary
+				//Conversion from decimal to 5-ary
 				tmp = Integer.parseInt(colorCode.get(i));
 				for (int j=4; tmp>0; j--){
 					assem[index][j] = tmp%5;
@@ -178,7 +178,7 @@ public class Assembler {
 			case "Pm":
 				assem[index][0] = 3;
 				i++;
-				//conversion from decimal to 5-ary
+				//Conversion from decimal to 5-ary
 				tmp = Integer.parseInt(colorCode.get(i));
 				for (int j=4; tmp>0; j--){
 					assem[index][j] = tmp%5;
@@ -199,7 +199,7 @@ public class Assembler {
 			}
 			index++;
 		}
-		//display 5-digit numbers on console
+		//Display 5-digit numbers on console
 		for (int i = 0; i < number; i++) {
 			for (int j = 0; j < 5; j++) {
 				System.out.print(assem[i][j]);
@@ -207,7 +207,7 @@ public class Assembler {
 			System.out.println();
 		}
 		
-		/* Convert 5-digit numbers into Color Tape corresponding to machine code */
+		/* Convert 5-digit numbers into Color tape corresponding to machine code */
 		double d1 = number;
 		int d2 = Math.round(number/2)+1;
 		
