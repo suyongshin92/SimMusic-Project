@@ -1,5 +1,5 @@
 //A program for SimMusic Assembler
-//It reads SimMusic Languages and converts them into 5-digit color tape.
+//It reads SimMusic Language and converts them into 5-digit color tape.
 
 import java.io.*;
 import java.util.*;
@@ -37,7 +37,7 @@ public class Assembler {
 		}
 		inputStream.close();
 		
-		/* Converts SimMusic Languages into 5-digit number */
+		/* Convert SimMusic Language into 5-digit number */
 		int[][] assem = new int[number][5];
 		int index = 0;
 		for (int i = 0; i < colorCode.size(); i++) {
@@ -207,15 +207,15 @@ public class Assembler {
 			System.out.println();
 		}
 		
-		/* Converts 5-digit numbers into Color Tape corresponding to machine code */
+		/* Convert 5-digit numbers into Color Tape corresponding to machine code */
 		double d1 = number;
 		int d2 = Math.round(number/2)+1;
 		
-		//Creating a BufferedImage object and save it to image file 
+		//Create a BufferedImage object and save it to image file 
 		BufferedImage image = new BufferedImage(1000, 100*d2, BufferedImage.TYPE_INT_RGB); 
 		Graphics2D graphics = image.createGraphics(); 
 		
-		//Setting colors for color tape */
+		//Set colors for color tape */
 		Color lavender = new Color(216,191,216);
 		Color green = new Color(124, 252, 0);
 		
@@ -245,7 +245,7 @@ public class Assembler {
 			flag++;
 		}
 		
-		//Save it to jpeg file
+		//Save it to a jpeg file
 		try {
 			File file = new File("ForElise_tape.jpeg");
 			ImageIO.write(image, "jpeg", file);
